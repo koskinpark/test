@@ -1,0 +1,5 @@
+name = Phone Book
+description = This module allows you to create a phone book, where you may add, edit and delete a new person and it telephone numbers.
+version = 0.1
+core = 7.x
+

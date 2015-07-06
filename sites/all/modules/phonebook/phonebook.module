@@ -1,0 +1,139 @@
+<?php
+function phonebook_menu()
+{
+    $items['test/phonebook/add'] = array(
+        'title' => 'Phonebook',
+        'page callback' => 'drupal_get_form',
+        'page arguments' => array('phonebook_form'),
+        'access callback' => TRUE,
+        'type' => MENU_CALLBACK,
+    );
+    return $items;
+}
+
+function phonebook_form($form, &$form_state)
+{
+    $form['phones'] = array(
+        '#tree' => TRUE,
+        '#prefix' => '<div id="phones-wrapper">',
+        '#suffix' => '</div>',
+    );
+    if (empty($form_state['name_count'])) {
+        $form_state['name_count'] = 1;
+    }
+    for ($i = 0; $i < $form_state['name_count']; $i++) {
+        $form['phones'][$i]['name'] = array(
+            '#type' => 'textfield',
+            '#title' => $i==0 ? t('Name of person') : '',
+            '#size' => 30,
+        );
+        $form['phones'][$i]['number'] = array(
+            '#type' => 'textfield',
+            '#title' =>  $i==0 ? t('Phone number') : '',
+            '#size' => 30,
+        );
+        $form['phones'][$i]['tags'] = array(
+            '#type' => 'textfield',
+            '#title' => $i==0 ? t('Tags') : '',
+            '#size' => 30,
+        );
+    }
+    $form['add_more'] = array(
+        '#type' => 'submit',
+        '#value' => t('Add more'),
+        '#submit' => array('phonebook_add_more_form_add'),
+        '#ajax' => array(
+            'wrapper' => 'phones-wrapper',
+            'callback' => 'phonebook_add_more_form_update',
+        ),
+    );
+    $form['phones'][$i]['submit'] = array(
+        '#type' => 'submit',
+        '#value' => t('Save all values'),
+    );
+    return $form;
+}
+
+function phonebook_add_more_form_add($form, &$form_state) {
+    $form_state['name_count']++;
+    $form_state['rebuild'] = TRUE;
+}
+
+function phonebook_add_more_form_update($form, $form_state) {
+    return $form['phones'];
+}
+
+function phonebook_form_validate($form, &$form_state)
+{
+    $amount_of_vars = $form_state['name_count'];
+
+    for ($i = 0; $i < $amount_of_vars; $i++) {
+        if (empty($form_state['values']['phones'][$i]['name'])) {
+            form_set_error('name', t('Please, enter name of person'));
+        } else {
+            if (mb_strlen($form_state['values']['phones'][$i]['name']) > 35) {
+                form_set_error('name', t('The name of person is too long'));
+            }
+        }
+        if (empty($form_state['values']['phones'][$i]['number'])) {
+            form_set_error('number', t('Please, enter phone number'));
+        } else {
+            if (mb_strlen($form_state['values']['phones'][$i]['number']) > 11) {
+                form_set_error('number', t('The phone number is too long'));
+            }
+        }
+        if (empty($form_state['values']['phones'][$i]['tags'])) {
+            form_set_error('tags', t('Please, enter name of person'));
+        } else {
+            if (mb_strlen($form_state['values']['phones'][$i]['tags']) > 30) {
+                form_set_error('tags', t('The number of tags is too large'));
+            }
+        }
+    }
+}
+
+function phonebook_form_submit($form, &$form_state)
+{
+//    $name = $form_state['values']['name'];
+//    $number = $form_state['values']['number'];
+//    $tags = array_diff(str_replace(' ', '', explode(",", $form_state['values']['tags'])), array(''));
+//    $list_of_tags = '';
+//    foreach ($tags as $tag) {
+//        $id_of_tag = phonebook_get_id_of_tag($tag);
+//        if (empty($id_of_tag)) {
+//            phonebook_set_vars_to_table(
+//                array(
+//                    'tag' => $tag
+//                ), 'tags'
+//            );
+//            $id_of_tag = phonebook_get_id_of_tag($tag);
+//        }
+//        $list_of_tags .= "$id_of_tag,";
+//    }
+//    $list_of_tags = substr($list_of_tags, 0, -1);
+//    phonebook_set_vars_to_table(array(
+//        'name' => $name,
+//        'number' => $number,
+//        'idtags' => $list_of_tags
+//    ), 'phonebook'
+//    );
+//    drupal_set_message(t("The person called $name with phonenumber of $number was added to DB"), 'notice');
+}
+
+function phonebook_get_id_of_tag($tag)
+{
+    $id = db_select('tags', 't')
+        ->fields('t', array('idt'))
+        ->condition('t.tag', "$tag")
+        ->execute()
+        ->fetchObject();
+    return $id ? $id->idt : '';
+}
+
+function phonebook_set_vars_to_table($vars = array(), $tablename)
+{
+    db_insert($tablename)
+        ->fields($vars)
+        ->execute();
+}
+

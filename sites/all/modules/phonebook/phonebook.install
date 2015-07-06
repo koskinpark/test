@@ -1,0 +1,55 @@
+<?php
+function phonebook_schema() {
+    $schema['phonebook'] = array(
+        'description' => 'Table of phonebook',
+        'fields' => array(
+            'idp' => array(
+                'description' => 'The primary identifier for a record.',
+                'type' => 'serial',
+                'unsigned' => TRUE,
+                'not null' => TRUE,
+            ),
+            'name' => array(
+                'description' => 'Name of person',
+                'type' => 'varchar',
+                'length' => 150,
+                'not null' => TRUE,
+            ),
+            'number' => array(
+                'description' => 'Phone number',
+                'type' => 'varchar',
+                'length' => 11,
+                'not null' => TRUE,
+            ),
+            'idtags' => array(
+                'description' => 'For link of tags and persons',
+                'type' => 'varchar',
+                'length' => 100,
+                'default' => '',
+            ),
+        ),
+        'primary key' => array('idp'),
+    );
+
+    $schema['tags'] = array(
+        'description' => 'Tags',
+        'fields' => array(
+            'idt' => array(
+                'description' => 'The primary identifier for a record.',
+                'type' => 'serial',
+                'unsigned' => TRUE,
+                'not null' => TRUE,
+            ),
+            'tag' => array(
+                'description' => 'Tag',
+                'type' => 'varchar',
+                'length' => 30,
+                'not null' => TRUE,
+                'default' => '',
+            ),
+        ),
+        'primary key' => array('idt'),
+    );
+
+    return $schema;
+}
