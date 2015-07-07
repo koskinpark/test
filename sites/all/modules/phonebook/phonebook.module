@@ -1,26 +1,27 @@
+
 <?php
 function phonebook_menu()
 {
     $items['test/phonebook'] = array(
-        'title' => 'Phonebook Table',
+        'title' => 'Full table',
         'page callback' => 'drupal_get_form',
         'page arguments' => array('phonebook_show_table_form'),
         'access callback' => TRUE,
     );
     $items['test/phonebook/add'] = array(
-        'title' => 'Phonebook Add New Phone Number',
+        'title' => 'Add new phone number',
         'page callback' => 'drupal_get_form',
         'page arguments' => array('phonebook_actions_form'),
         'access callback' => TRUE,
     );
-    $items['test/phonebook/%phonebook_item/delete'] = array(
-        'title' => 'Phonebook Delete Phone Number',
+    $items['test/phonebook/%phonebook_item/%item_delete'] = array(
+        'title' => 'Delete phone number',
         'page callback' => 'drupal_get_form',
-        'page arguments' => array('phonebook_actions_form', 2),
+        'page arguments' => array('phonebook_actions_form', 2, 3),
         'access callback' => TRUE,
     );
     $items['test/phonebook/%phonebook_item/edit'] = array(
-        'title' => 'Phonebook Edit Phone Number',
+        'title' => 'Edit phone number',
         'page callback' => 'drupal_get_form',
         'page arguments' => array('phonebook_actions_form', 2),
         'access callback' => TRUE,
@@ -28,8 +29,45 @@ function phonebook_menu()
     return $items;
 }
 
-function phonebook_show_table_form() {
+function phonebook_show_table_form()
+{
     $obj_phones = phonebook_get_phones_data();
+    if (!empty($_GET['tag'])) {
+        $filtered_tag = $_GET['tag'];
+        $id_of_filtered_tag = phonebook_get_id_of_tag('idt', 'tag', $filtered_tag);
+        if (!empty($id_of_filtered_tag)) {
+            $temp_obj = $obj_phones;
+            $obj_phones = '';
+            $num_key = 0;
+            $flag_of_person = false;
+            for ($i = 0; $i < count($temp_obj); $i++) {
+                $ids_of_tags = explode(',', $temp_obj[$i]->idtags);
+                $flag_of_checking = false;
+                foreach ($ids_of_tags as $value) {
+                    if ($value == $id_of_filtered_tag) {
+                        $flag_of_checking = true;
+                    }
+                }
+                if ($flag_of_checking) {
+                    $obj_phones[$num_key] = $temp_obj[$i];
+                    $flag_of_person = true;
+                    $num_key++;
+                }
+            }
+            if (!$flag_of_person) {
+                drupal_set_message('No one person has tag called "' . $filtered_tag . '"', 'error');
+                drupal_goto('test/phonebook');
+            }
+            $form['main_table'] = array(
+                '#type' => 'link',
+                '#title' => "Show full table",
+                '#href' => "/test/phonebook",
+            );
+        } else {
+            drupal_set_message('The tag called "' . $filtered_tag . '" does not exist', 'error');
+            drupal_goto('test/phonebook');
+        }
+    }
     if (!empty($obj_phones)) {
         $form['table'] = array(
             '#tree' => TRUE,
@@ -62,9 +100,9 @@ function phonebook_show_table_form() {
                 $tagname = phonebook_get_id_of_tag('tag', 'idt', $ids_of_tags[$j]);
                 $form['table']['data'][$id_of_person]['tags'][$j] = array(
                     '#type' => 'link',
-                    '#title' => "   #$tagname",
+                    '#title' => (!empty($tagname)) ? "#$tagname" : '',
                     '#href' => "/test/phonebook#$tagname",
-                    '#suffix' => (($j+1) != count($ids_of_tags)) ? ', ' : '',
+                    '#suffix' => (($j + 1) != count($ids_of_tags)) ? ', ' : '',
                 );
             }
             $form['table']['data'][$id_of_person]['operations']['edit'] = array(
@@ -86,7 +124,25 @@ function phonebook_show_table_form() {
         '#title' => "Add new",
         '#href' => "/test/phonebook/add",
     );
-
+    $all_tags = phonebook_get_phones_data(array(
+        'field' => 'idt',
+        'condition' => 0,
+        'condition_param' => '>=',
+    ), 'tags', 't');
+    if (!empty($all_tags)) {
+        $form['all_tags'] = array(
+            '#type' => 'item',
+            '#markup' => 'Filter by tags'
+        );
+        for ($i = 0; $i < count($all_tags); $i++) {
+            $form['tags'][$i]['tag'] = array(
+                '#type' => 'link',
+                '#title' => '#' . $all_tags[$i]->tag . ' ',
+                '#href' => 'test/phonebook',
+                '#options' => array('query' => array('tag' => $all_tags[$i]->tag)),
+            );
+        }
+    }
     return $form;
 }
 
@@ -100,51 +156,77 @@ function phonebook_item_load($id_of_person) {
     return $info_about_person;
 }
 
-function phonebook_actions_form($form, &$form_state, $info_about_person = '') {
-    $form['table'] = array(
-        '#tree' => TRUE,
-        '#theme' => 'tabular_form',
-    );
-    $form['table']['header'] = array(
-        '#type' => 'value',
-        '#value' => array(
-            'Name of person',
-            'Phone',
-            'Tags',
-        ),
-    );
-    if (empty($form_state['name_count'])) {
-        $form_state['name_count'] = 1;
+function item_delete_load() {
+    $event_delete = true;
+    return $event_delete;
+}
+
+function phonebook_actions_form($form, &$form_state, $info_about_person = '', $event_delete = '') {
+    if (!empty($event_delete)) {
+        $form['delete_item'] = array(
+            '#type' => 'value',
+            '#value' => $info_about_person[0]->idp,
+        );
+        return confirm_form($form,
+            'Are you sure you want to delete the phone number of <i>' . check_plain($info_about_person[0]->name) . '</i>?',
+            'nodemngr',
+            'This operation can not be undone',
+            'Delete',
+            'Cansel'
+        );
     }
-    $form['table']['data'][0]['name'] = array(
-        '#type' => 'textfield',
-        '#default_value' => (!empty($info_about_person)) ? $info_about_person[0]->name : '',
-        '#size' => 30,
-    );
-    $form['table']['data'][0]['number'] = array(
-        '#type' => 'textfield',
-        '#default_value' => (!empty($info_about_person)) ? $info_about_person[0]->number : '',
-        '#size' => 30,
-    );
-    if (!empty($info_about_person)) {
-        $tagnames = '';
-        $ids_of_tags = explode(',', $info_about_person[0]->idtags);
-        for ($j = 0; $j < count($ids_of_tags); $j++) {
-            $tagname = phonebook_get_id_of_tag('tag', 'idt', $ids_of_tags[$j]);
-            $tagnames .= $tagname . ', ';
+    else {
+        $form['main_table'] = array(
+            '#type' => 'link',
+            '#title' => "Show full table",
+            '#href' => "/test/phonebook",
+        );
+
+        $form['table'] = array(
+            '#tree' => TRUE,
+            '#theme' => 'tabular_form',
+        );
+        $form['table']['header'] = array(
+            '#type' => 'value',
+            '#value' => array(
+                'Name of person',
+                'Phone',
+                'Tags',
+            ),
+        );
+        if (empty($form_state['name_count'])) {
+            $form_state['name_count'] = 1;
         }
-        $tagnames = substr($tagnames, 0, -2);
+        $form['table']['data'][0]['name'] = array(
+            '#type' => 'textfield',
+            '#default_value' => (!empty($info_about_person)) ? $info_about_person[0]->name : '',
+            '#size' => 30,
+        );
+        $form['table']['data'][0]['number'] = array(
+            '#type' => 'textfield',
+            '#default_value' => (!empty($info_about_person)) ? $info_about_person[0]->number : '',
+            '#size' => 30,
+        );
+        if (!empty($info_about_person)) {
+            $tagnames = '';
+            $ids_of_tags = explode(',', $info_about_person[0]->idtags);
+            for ($j = 0; $j < count($ids_of_tags); $j++) {
+                $tagname = phonebook_get_id_of_tag('tag', 'idt', $ids_of_tags[$j]);
+                $tagnames .= $tagname . ', ';
+            }
+            $tagnames = substr($tagnames, 0, -2);
+        }
+        $form['table']['data'][0]['tags'] = array(
+            '#type' => 'textfield',
+            '#default_value' => (!empty($tagnames)) ? $tagnames : '',
+            '#size' => 30,
+        );
+        $form['submit'] = array(
+            '#type' => 'submit',
+            '#value' => t('Submit'),
+        );
+        return $form;
     }
-    $form['table']['data'][0]['tags'] = array(
-        '#type' => 'textfield',
-        '#default_value' => (!empty($tagnames)) ? $tagnames : '',
-        '#size' => 30,
-    );
-    $form['submit'] = array(
-        '#type' => 'submit',
-        '#value' => t('Submit'),
-    );
-    return $form;
 }
 
 function phonebook_theme() {
@@ -181,75 +263,86 @@ function phonebook_add_more_form_update($form, $form_state) {
 
 function phonebook_actions_form_validate($form, &$form_state)
 {
-    dpm($form_state);
-    $amount_of_vars = $form_state['name_count'];
-    dpm($form_state);
-    for ($i = 0; $i < $amount_of_vars; $i++) {
-        if (empty($form_state['values']['table']['data'][$i]['name'])) {
-            form_set_error('name', t('Please, enter name of person'));
-        } else {
-            if (mb_strlen($form_state['values']['table']['data'][$i]['name']) > 35) {
-                form_set_error('name', t('The name of person is too long'));
+    if (!empty($form_state['name_count'])) {
+        $amount_of_vars = $form_state['name_count'];
+        for ($i = 0; $i < $amount_of_vars; $i++) {
+            if (empty($form_state['values']['table']['data'][$i]['name'])) {
+                form_set_error('name', t('Please, enter name of person'));
+            } else {
+                if (mb_strlen($form_state['values']['table']['data'][$i]['name']) > 35) {
+                    form_set_error('name', t('The name of person is too long'));
+                }
             }
-        }
-        if (empty($form_state['values']['table']['data'][$i]['number'])) {
-            form_set_error('number', t('Please, enter phone number'));
-        } else {
-            if (mb_strlen($form_state['values']['table']['data'][$i]['number']) > 11) {
-                form_set_error('number', t('The phone number is too long'));
+            if (empty($form_state['values']['table']['data'][$i]['number'])) {
+                form_set_error('number', t('Please, enter phone number'));
+            } else {
+                if (mb_strlen($form_state['values']['table']['data'][$i]['number']) > 11) {
+                    form_set_error('number', t('The phone number is too long'));
+                }
+                if (!ctype_digit($form_state['values']['table']['data'][$i]['number'])) {
+                    form_set_error('number', t('The phone number must be numeric'));
+                }
             }
-        }
-        if (mb_strlen($form_state['values']['table']['data'][$i]['tags']) > 30) {
-            form_set_error('tags', t('The number of tags is too large'));
+            if (mb_strlen($form_state['values']['table']['data'][$i]['tags']) > 30) {
+                form_set_error('tags', t('The number of tags is too large'));
+            }
         }
     }
 }
 
 function phonebook_actions_form_submit($form, &$form_state)
 {
-    $amount_of_vars = $form_state['name_count'];
-    for ($i = 0; $i < $amount_of_vars; $i++) {
-        $name = $form_state['values']['table']['data'][$i]['name'];
-        $number = $form_state['values']['table']['data'][$i]['number'];
-        $tags = array_diff(str_replace(' ', '', explode(",", $form_state['values']['table']['data'][$i]['tags'])), array(''));
-        $update_flag = false;
-        if (!empty($form_state['complete form']['table']['data'][0]['name']['#default_value'])) {
-            $cheking_name = $form_state['complete form']['table']['data'][0]['name']['#default_value'];
-            $cheking_number = $form_state['complete form']['table']['data'][0]['number']['#default_value'];
-            $cheking_tags = $form_state['complete form']['table']['data'][0]['tags']['#default_value'];
-            if (($name != $cheking_name) || ($number != $cheking_number) || ($tags != $cheking_tags)) {
-                $update_flag = true;
+    if (!empty($form_state['values']['confirm'])) {
+        db_delete('phonebook')
+            ->condition('idp',$form_state['values']['delete_item'])
+            ->execute();
+        drupal_set_message('The phone number was deleted');
+        drupal_goto('test/phonebook');
+    }
+    else {
+        $amount_of_vars = $form_state['name_count'];
+        for ($i = 0; $i < $amount_of_vars; $i++) {
+            $name = $form_state['values']['table']['data'][$i]['name'];
+            $number = $form_state['values']['table']['data'][$i]['number'];
+            $tags = array_diff(str_replace(' ', '', explode(",", $form_state['values']['table']['data'][$i]['tags'])), array(''));
+            $update_flag = false;
+            if (!empty($form_state['complete form']['table']['data'][0]['name']['#default_value'])) {
+                $cheking_name = $form_state['complete form']['table']['data'][0]['name']['#default_value'];
+                $cheking_number = $form_state['complete form']['table']['data'][0]['number']['#default_value'];
+                $cheking_tags = $form_state['complete form']['table']['data'][0]['tags']['#default_value'];
+                if (($name != $cheking_name) || ($number != $cheking_number) || ($tags != $cheking_tags)) {
+                    $update_flag = true;
+                }
             }
-        }
-        $list_of_tags = '';
-        foreach ($tags as $tag) {
-            $id_of_tag = phonebook_get_id_of_tag('idt', 'tag', $tag);
-            if (empty($id_of_tag)) {
-                phonebook_set_vars_to_table(
-                    array(
-                        'tag' => $tag
-                    ), 'tags'
-                );
+            $list_of_tags = '';
+            foreach ($tags as $tag) {
                 $id_of_tag = phonebook_get_id_of_tag('idt', 'tag', $tag);
+                if (empty($id_of_tag)) {
+                    phonebook_set_vars_to_table(
+                        array(
+                            'tag' => $tag
+                        ), 'tags'
+                    );
+                    $id_of_tag = phonebook_get_id_of_tag('idt', 'tag', $tag);
+                }
+                $list_of_tags .= "$id_of_tag,";
             }
-            $list_of_tags .= "$id_of_tag,";
-        }
-        $list_of_tags = substr($list_of_tags, 0, -1);
-        if ($update_flag == true) {
-            $query = db_update('phonebook')
-                ->fields(array('name' => $name, 'number' => $number, 'idtags' => $list_of_tags))
-                ->condition('idp', $form_state['build_info']['args'][0][0]->idp)
-                ->execute();
-            drupal_set_message(t("The person called $name with phonenumber of $number was updated"), 'notice');
-        }
-        else {
-            phonebook_set_vars_to_table(array(
-                'name' => $name,
-                'number' => $number,
-                'idtags' => $list_of_tags
-            ), 'phonebook'
-            );
-            drupal_set_message(t("The person called $name with phonenumber of $number was added to DB"), 'notice');
+            $list_of_tags = substr($list_of_tags, 0, -1);
+            if ($update_flag == true) {
+                $query = db_update('phonebook')
+                    ->fields(array('name' => $name, 'number' => $number, 'idtags' => $list_of_tags))
+                    ->condition('idp', $form_state['build_info']['args'][0][0]->idp)
+                    ->execute();
+                drupal_set_message(t("The person called $name with phonenumber of $number was updated"));
+            } else {
+                phonebook_set_vars_to_table(array(
+                    'name' => $name,
+                    'number' => $number,
+                    'idtags' => $list_of_tags
+                ), 'phonebook'
+                );
+                drupal_set_message(t("The person called $name with phonenumber of $number was added to DB"));
+            }
         }
     }
 }
@@ -271,7 +364,7 @@ function phonebook_set_vars_to_table($vars = array(), $tablename)
         ->execute();
 }
 
-function phonebook_get_phones_data($conditions = array()) {
+function phonebook_get_phones_data($conditions = array(), $tablename = '', $allias_of_name = '') {
     if (!empty($conditions)) {
         $field = $conditions['field'];
         $condition = $conditions['condition'];
@@ -282,9 +375,13 @@ function phonebook_get_phones_data($conditions = array()) {
         $condition = 0;
         $condition_param = '>=';
     }
-    $phones = db_select('phonebook', 'p')
-        ->fields('p')
-        ->condition("p.$field", $condition, $condition_param)
+    if (empty($tablename) && empty($allias_of_name)) {
+        $tablename = 'phonebook';
+        $allias_of_name = 'p';
+    }
+    $phones = db_select($tablename, $allias_of_name)
+        ->fields($allias_of_name)
+        ->condition("$allias_of_name.$field", $condition, $condition_param)
         ->execute()
         ->fetchAll();
     return $phones ? $phones : '';
